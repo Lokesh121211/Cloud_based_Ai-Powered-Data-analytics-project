@@ -1,24 +1,52 @@
 import streamlit as st
 import pandas as pd
-import joblib
+import numpy as np
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.ensemble import RandomForestRegressor
 
-# Load trained model
-model = joblib.load("financial_planner_model.pkl")
-encoder = joblib.load("lifestyle_encoder.pkl")
+# ---------------------------------
+# Load Dataset
+# ---------------------------------
 
-st.set_page_config(page_title="AI Financial Advisor", page_icon="💰", layout="wide")
+data = pd.read_csv("financial_dataset_5000.csv")
+
+# ---------------------------------
+# Preprocess
+# ---------------------------------
+
+encoder = LabelEncoder()
+data["lifestyle_encoded"] = encoder.fit_transform(data["lifestyle"])
+
+X = data[["salary","lifestyle_encoded"]]
+y = data[["rent","food","travel","gym","misc","savings"]]
+
+# ---------------------------------
+# Train Model
+# ---------------------------------
+
+model = MultiOutputRegressor(RandomForestRegressor(n_estimators=200, random_state=42))
+model.fit(X,y)
+
+# ---------------------------------
+# Streamlit UI
+# ---------------------------------
+
+st.set_page_config(page_title="AI Financial Advisor", page_icon="💰")
 
 st.title("💰 AI Personal Finance Advisor")
-st.write("Plan your finances using Machine Learning")
 
-salary = st.number_input("Enter Monthly Salary (₹)", min_value=1000)
+st.sidebar.header("User Inputs")
 
-lifestyle = st.selectbox(
+salary = st.sidebar.number_input("Enter Monthly Salary (₹)", min_value=1000)
+
+lifestyle = st.sidebar.selectbox(
     "Select Lifestyle",
     ["Basic","Middle","Rich"]
 )
 
-if st.button("Generate Financial Plan"):
+if st.sidebar.button("Generate Financial Plan"):
 
     life_encoded = encoder.transform([lifestyle])[0]
 
@@ -29,21 +57,30 @@ if st.button("Generate Financial Plan"):
 
     prediction = model.predict(user_df)[0]
 
-    rent, food, travel, gym, misc, savings = prediction
+    rent = prediction[0]
+    food = prediction[1]
+    travel = prediction[2]
+    gym = prediction[3]
+    misc = prediction[4]
+    savings = prediction[5]
 
-    st.subheader("Financial Overview")
+    total_expense = rent + food + travel + gym + misc
+
+    st.subheader("Financial Breakdown")
 
     col1,col2,col3 = st.columns(3)
+
     col1.metric("Rent", f"₹{rent:.0f}")
     col2.metric("Food", f"₹{food:.0f}")
     col3.metric("Travel", f"₹{travel:.0f}")
 
     col4,col5,col6 = st.columns(3)
+
     col4.metric("Gym", f"₹{gym:.0f}")
     col5.metric("Misc", f"₹{misc:.0f}")
     col6.metric("Savings", f"₹{savings:.0f}")
 
-    st.subheader("Expense Breakdown")
+    st.subheader("Expense Chart")
 
     expense_df = pd.DataFrame({
         "Category":["Rent","Food","Travel","Gym","Misc"],
@@ -54,11 +91,13 @@ if st.button("Generate Financial Plan"):
 
     savings_ratio = savings/salary
 
-    st.subheader("AI Advice")
+    st.subheader("AI Financial Advice")
 
     if savings_ratio < 0.1:
-        st.error("Your savings are low.")
+        st.error("Your savings are very low. Reduce unnecessary expenses.")
+
     elif savings_ratio < 0.25:
-        st.warning("Moderate savings. Consider investments.")
+        st.warning("Moderate savings. Consider investing in SIPs.")
+
     else:
-        st.success("Excellent savings discipline.")
+        st.success("Excellent savings! Consider long-term investments.")
